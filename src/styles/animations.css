@@ -1,0 +1,165 @@
+/* Keyframe Animations for Hearts, Sparkles, Candles & Ribbons */
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(2.5deg);
+  }
+}
+
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px);
+  }
+  33% {
+    transform: translateY(-8px) translateX(4px);
+  }
+  66% {
+    transform: translateY(-4px) translateX(-4px);
+  }
+}
+
+@keyframes balloonDrift {
+  0%, 100% {
+    transform: translateY(0px) rotate(-2.5deg);
+  }
+  50% {
+    transform: translateY(-16px) rotate(2.5deg);
+  }
+}
+
+@keyframes sparklePulse {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.85) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.16) rotate(12deg);
+  }
+}
+
+@keyframes flickerFlame {
+  0%, 100% {
+    transform: scaleX(1) scaleY(1) skewX(-2deg);
+    opacity: 0.96;
+  }
+  25% {
+    transform: scaleX(0.94) scaleY(1.08) skewX(3deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleX(1.04) scaleY(0.94) skewX(-3deg);
+    opacity: 0.92;
+  }
+  75% {
+    transform: scaleX(0.96) scaleY(1.06) skewX(2deg);
+    opacity: 1;
+  }
+}
+
+@keyframes candleGlow {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes smokeRise {
+  0% {
+    opacity: 0.7;
+    transform: translateY(0) scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-34px) translateX(6px) scale(1.6);
+  }
+}
+
+@keyframes heartBeatSoft {
+  0%, 100% {
+    transform: scale(1);
+  }
+  18% {
+    transform: scale(1.14);
+  }
+  32% {
+    transform: scale(0.98);
+  }
+  48% {
+    transform: scale(1.1);
+  }
+  70% {
+    transform: scale(1);
+  }
+}
+
+@keyframes eqBar {
+  0%, 100% {
+    transform: scaleY(0.32);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes ribbonSway {
+  0%, 100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+/* Opt in to ambient motion only when user has no reduced-motion preference */
+@media (prefers-reduced-motion: no-preference) {
+  .animate-float-slow {
+    animation: floatSlow 5.5s ease-in-out infinite;
+  }
+
+  .animate-float-gentle {
+    animation: floatGentle 6.5s ease-in-out infinite;
+  }
+
+  .animate-balloon {
+    animation: balloonDrift 6s ease-in-out infinite;
+  }
+
+  .animate-sparkle {
+    animation: sparklePulse 3.2s ease-in-out infinite;
+  }
+
+  .animate-flame {
+    transform-origin: center bottom;
+    animation: flickerFlame 1.35s ease-in-out infinite;
+  }
+
+  .animate-candle-glow {
+    animation: candleGlow 1.8s ease-in-out infinite;
+  }
+
+  .animate-smoke {
+    animation: smokeRise 1.4s ease-out forwards;
+  }
+
+  .animate-heart-soft {
+    animation: heartBeatSoft 2.1s ease-in-out infinite;
+  }
+
+  .animate-eq-bar {
+    transform-origin: bottom;
+    animation: eqBar 0.85s ease-in-out infinite;
+  }
+
+  .animate-ribbon-sway {
+    transform-origin: top center;
+    animation: ribbonSway 4.2s ease-in-out infinite;
+  }
+}

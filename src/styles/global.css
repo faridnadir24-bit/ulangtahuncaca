@@ -1,0 +1,283 @@
+@import "tailwindcss";
+@import "./animations.css";
+
+:root {
+  --bg-pink: #FFF0F5;
+  --pink-light: #FFE4EC;
+  --pink-pastel: #F8BBD0;
+  --pink-main: #F48FB1;
+  --pink-rose: #E875A5;
+  --pink-deep: #B94F7C;
+  --white: #FFFFFF;
+  --text-main: #75465A;
+  --text-soft: #966379;
+  --target-size: 24px;
+
+  --shadow-soft: 0 12px 32px -8px rgba(185, 79, 124, 0.16);
+  --shadow-card: 0 14px 36px -10px rgba(232, 117, 165, 0.22);
+  --shadow-polaroid: 0 10px 26px -6px rgba(117, 70, 90, 0.14), 0 4px 10px -2px rgba(244, 143, 177, 0.22);
+}
+
+@media (pointer: coarse) {
+  :root {
+    --target-size: 44px;
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+    background-color: var(--bg-pink);
+    color: var(--text-main);
+    font-family: 'DM Sans', 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-tap-highlight-color: rgba(244, 143, 177, 0.25);
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--bg-pink);
+    color: var(--text-main);
+    overflow-wrap: break-word;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Quicksand', 'Nunito', sans-serif;
+    color: var(--pink-deep);
+    letter-spacing: -0.015em;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+
+  p, li {
+    text-wrap: pretty;
+  }
+
+  button {
+    font-family: 'Nunito', 'Quicksand', sans-serif;
+    cursor: pointer;
+  }
+
+  :where(.touch-control, nav a) {
+    min-block-size: var(--target-size);
+    min-inline-size: var(--target-size);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  ::selection {
+    background-color: #F8BBD0;
+    color: #75465A;
+  }
+}
+
+/* Native Scroll Progress Ribbon */
+#scroll-progress {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 45;
+  width: 100%;
+  height: 3.5px;
+  background: linear-gradient(90deg, #F8BBD0 0%, #F48FB1 50%, #E875A5 100%);
+  transform-origin: 0 50%;
+  transform: scaleX(var(--scroll-progress, 0));
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    @keyframes grow-scroll-progress {
+      from {
+        transform: scaleX(0);
+      }
+      to {
+        transform: scaleX(1);
+      }
+    }
+
+    #scroll-progress {
+      animation: grow-scroll-progress auto linear;
+      animation-timeline: scroll();
+    }
+  }
+}
+
+/* Native Lightbox Dialog & Scroll Containment */
+dialog.lightbox-dialog:modal {
+  overscroll-behavior: contain;
+  max-width: min(32rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 1.5rem);
+  width: 100%;
+  margin: auto;
+  padding: 0.75rem;
+  border: none;
+  background: transparent;
+  overflow: visible;
+}
+
+dialog.lightbox-dialog::backdrop {
+  background: rgba(117, 70, 90, 0.48);
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+/* Typography Helpers */
+.font-heading {
+  font-family: 'Quicksand', 'Nunito', sans-serif;
+}
+
+.font-ui {
+  font-family: 'Nunito', 'Quicksand', sans-serif;
+}
+
+.font-serif-warm {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+.font-body {
+  font-family: 'DM Sans', 'Nunito', sans-serif;
+}
+
+/* Scrapbook Paper & Texture Surfaces */
+.bg-pink-dream {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 228, 236, 0.95) 0%, transparent 45%),
+    radial-gradient(circle at 88% 12%, rgba(248, 187, 208, 0.55) 0%, transparent 40%),
+    radial-gradient(circle at 75% 85%, rgba(255, 228, 236, 0.85) 0%, transparent 45%),
+    linear-gradient(180deg, #FFF0F5 0%, #FFE8F0 52%, #FFF0F5 100%);
+}
+
+.scrapbook-dots {
+  background-color: #FFF0F5;
+  background-image: radial-gradient(rgba(244, 143, 177, 0.24) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+}
+
+.scrapbook-gingham {
+  background-color: #FFF6F9;
+  background-image:
+    linear-gradient(90deg, rgba(248, 187, 208, 0.17) 50%, transparent 50%),
+    linear-gradient(rgba(248, 187, 208, 0.17) 50%, transparent 50%);
+  background-size: 32px 32px;
+}
+
+.stationery-paper {
+  background-color: #FFFDFD;
+  background-image:
+    linear-gradient(180deg, rgba(255, 240, 245, 0.45) 0%, rgba(255, 255, 255, 0.95) 14%, #FFFDFD 100%),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 31px,
+      rgba(244, 143, 177, 0.16) 31px,
+      rgba(244, 143, 177, 0.16) 32px
+    );
+  background-position: 0 0, 0 24px;
+}
+
+/* Washi Tape Decorations */
+.washi-tape {
+  position: relative;
+  backdrop-filter: blur(2px);
+  box-shadow: 0 2px 6px rgba(185, 79, 124, 0.12);
+}
+
+.washi-polka {
+  background-color: rgba(248, 187, 208, 0.78);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.88) 2px, transparent 2px);
+  background-size: 10px 10px;
+}
+
+.washi-stripe {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(244, 143, 177, 0.65),
+    rgba(244, 143, 177, 0.65) 5px,
+    rgba(255, 228, 236, 0.85) 5px,
+    rgba(255, 228, 236, 0.85) 10px
+  );
+}
+
+.washi-blush {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 228, 236, 0.85),
+    rgba(248, 187, 208, 0.85),
+    rgba(255, 228, 236, 0.85)
+  );
+}
+
+/* Polaroid Shadow & Frame Variants */
+.polaroid-card {
+  box-shadow: var(--shadow-polaroid);
+  transition: box-shadow 0.3s ease;
+}
+
+.polaroid-card:hover {
+  box-shadow: 0 18px 36px -8px rgba(185, 79, 124, 0.24), 0 6px 14px -3px rgba(244, 143, 177, 0.28);
+}
+
+.frame-gingham {
+  background-color: #FFF5F8;
+  background-image:
+    linear-gradient(90deg, rgba(248, 187, 208, 0.22) 50%, transparent 50%),
+    linear-gradient(rgba(248, 187, 208, 0.22) 50%, transparent 50%);
+  background-size: 16px 16px;
+}
+
+.frame-lace {
+  background-image: radial-gradient(circle, rgba(244, 143, 177, 0.35) 1.5px, transparent 1.5px);
+  background-size: 12px 12px;
+}
+
+.film-sprocket-row {
+  background-image: radial-gradient(circle, #FFF0F5 4.2px, transparent 4.8px);
+  background-size: 20px 14px;
+  background-repeat: repeat-x;
+  background-position: center;
+}
+
+/* Cute Primary Pink Button */
+.btn-kawaii {
+  background: linear-gradient(135deg, #F48FB1 0%, #E875A5 100%);
+  color: #FFFFFF;
+  box-shadow: 0 10px 24px -6px rgba(232, 117, 165, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.btn-kawaii:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 14px 28px -6px rgba(185, 79, 124, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+  filter: brightness(1.03);
+}
+
+.btn-kawaii:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+/* Custom Pastel Scrollbar */
+::-webkit-scrollbar {
+  width: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: #FFF0F5;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #F8BBD0;
+  border-radius: 999px;
+  border: 2px solid #FFF0F5;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #F48FB1;
+}
