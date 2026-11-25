@@ -34,7 +34,7 @@ export default function OpeningSection({ config, onOpenComplete, onStartMusic })
       initial={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 1.03, filter: 'blur(4px)' }}
       transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-      className="relative flex min-h-dvh w-full flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#FFF0F5] via-[#FFE4EC] to-[#F8BBD0]/65 px-5 py-10 text-center"
+      className="relative z-10 flex min-h-dvh w-full flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#FFF0F5] via-[#FFE4EC] to-[#F8BBD0]/65 px-5 py-10 text-center"
     >
       {/* Ambient floating hearts, flowers, and sparkles */}
       <FloatingHearts variant="opening" burstActive={isOpening} />

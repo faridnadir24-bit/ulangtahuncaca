@@ -376,7 +376,9 @@ export const birthdayConfig = {
 
   music: {
     enabled: true,
+    primaryAudioSrc: '', // Opsional: isi path MP3 lokal (mis. '/music/selamat-ulang-tahun.mp3') bila ingin memutar file audio langsung
     youtubeId: 'HDRsMqNhMLc',
+    youtubeBackupIds: ['wGlrlZTCmMg'],
     youtubeUrl: 'https://youtu.be/HDRsMqNhMLc?si=L7UZRZtuarErJofO',
     fallbackSrc: '/music/panjang-umurnya-piano.wav',
     title: 'Selamat Ulang Tahun',

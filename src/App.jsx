@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { X } from 'lucide-react';
 import birthdayConfig from './data/birthdayConfig';
 import MusicPlayer from './components/MusicPlayer';
 import { ScrapbookDivider } from './components/CuteDecorations';
@@ -11,25 +12,100 @@ import CakeSection from './sections/CakeSection';
 import WishesSection from './sections/WishesSection';
 import FinalSection from './sections/FinalSection';
 
+/**
+ * Bangun URL embed YouTube dengan parameter mobile-friendly dan referrer/origin valid.
+ */
+function buildYtEmbedUrl(ytId) {
+  if (!ytId) return '';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const hasHttpOrigin = origin && origin.startsWith('http');
+  const params = new URLSearchParams({
+    enablejsapi: '1',
+    playsinline: '1',
+    loop: '1',
+    playlist: ytId,
+    rel: '0',
+    modestbranding: '1',
+    autoplay: '0',
+  });
+  if (hasHttpOrigin) {
+    params.set('origin', origin);
+    params.set('widget_referrer', origin);
+  }
+  return `https://www.youtube.com/embed/${ytId}?${params.toString()}`;
+}
+
 export default function App() {
+  const ytCandidates = useMemo(() => {
+    const primary = birthdayConfig.music.youtubeId;
+    const backups = birthdayConfig.music.youtubeBackupIds || [];
+    return [primary, ...backups].filter((id, idx, arr) => id && arr.indexOf(id) === idx);
+  }, []);
+
+  const hasPrimaryLocalAudio = Boolean(birthdayConfig.music.primaryAudioSrc);
+  const hasYouTubeSource = ytCandidates.length > 0 && !hasPrimaryLocalAudio;
+
   const [hasEntered, setHasEntered] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
-  const [useFallback, setUseFallback] = useState(!birthdayConfig.music.youtubeId);
+  const [needsDirectTap, setNeedsDirectTap] = useState(false);
+  const [ytCandidateIdx, setYtCandidateIdx] = useState(0);
+  const [retryNonce, setRetryNonce] = useState(0);
+  const [ytErrorCode, setYtErrorCode] = useState(null);
+  const [useFallback, setUseFallback] = useState(!hasYouTubeSource && !hasPrimaryLocalAudio);
   const [fallbackError, setFallbackError] = useState(false);
 
-  const ytIframeRef = useRef(null);
+  const ytSlotRef = useRef(null);
   const ytPlayerRef = useRef(null);
   const ytReadyRef = useRef(false);
   const pendingPlayRef = useRef(false);
+  const playCheckTimerRef = useRef(null);
   const hasEnteredRef = useRef(false);
+  const isMutedRef = useRef(false);
   const fallbackAudioRef = useRef(null);
   const progressRef = useRef(null);
+
+  const activeYtId = ytCandidates[ytCandidateIdx] || '';
 
   useEffect(() => {
     hasEnteredRef.current = hasEntered;
   }, [hasEntered]);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  const clearPlayCheckTimer = useCallback(() => {
+    if (playCheckTimerRef.current) {
+      clearTimeout(playCheckTimerRef.current);
+      playCheckTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Pastikan di browser HP (iOS Safari / mobile Chrome) jika pemutaran lintas-iframe
+   * tertahan oleh kebijakan autoplay, mini video YouTube ditampilkan dengan prompt jelas
+   * agar cukup 1 ketukan langsung — tanpa memutar audio piano secara diam-diam.
+   */
+  const scheduleMobilePlaybackCheck = useCallback(
+    (delayMs = 1800) => {
+      clearPlayCheckTimer();
+      playCheckTimerRef.current = setTimeout(() => {
+        const player = ytPlayerRef.current;
+        const state = player?.getPlayerState?.();
+        // 1 = PLAYING, 3 = BUFFERING
+        if (state !== 1 && state !== 3) {
+          setIsPlaying(false);
+          setNeedsDirectTap(true);
+          if (hasEnteredRef.current) {
+            setShowVideo(true);
+          }
+        }
+      }, delayMs);
+    },
+    [clearPlayCheckTimer],
+  );
 
   // Fallback progress bar hanya untuk browser tanpa CSS scroll-driven animation
   useEffect(() => {
@@ -49,86 +125,114 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [hasEntered]);
 
-  const ytEmbedUrl = useMemo(() => {
-    const ytId = birthdayConfig.music.youtubeId;
-    if (!ytId) return '';
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const params = new URLSearchParams({
-      enablejsapi: '1',
-      playsinline: '1',
-      loop: '1',
-      playlist: ytId,
-      rel: '0',
-      modestbranding: '1',
-      autoplay: '0',
-    });
-    if (origin) {
-      params.set('origin', origin);
-      params.set('widget_referrer', origin);
-    }
-    return `https://www.youtube.com/embed/${ytId}?${params.toString()}`;
-  }, []);
-
-  const playFallbackAudio = useCallback(() => {
+  const playLocalAudio = useCallback(() => {
     const audio = fallbackAudioRef.current;
     if (!audio || fallbackError) return;
     audio.volume = (birthdayConfig.music.defaultVolume ?? 55) / 100;
-    audio.muted = isMuted;
+    audio.muted = isMutedRef.current;
     audio
       .play()
       .then(() => setIsPlaying(true))
       .catch(() => setIsPlaying(false));
-  }, [fallbackError, isMuted]);
+  }, [fallbackError]);
 
   const switchToFallback = useCallback(
     (shouldPlay = false) => {
+      clearPlayCheckTimer();
+      setNeedsDirectTap(false);
+      setShowVideo(false);
       setUseFallback(true);
       if (shouldPlay) {
         setTimeout(() => {
-          playFallbackAudio();
+          playLocalAudio();
         }, 60);
       }
     },
-    [playFallbackAudio],
+    [clearPlayCheckTimer, playLocalAudio],
   );
 
-  // Pasang controller YT.Player pada elemen <iframe> yang sudah memiliki origin & referrerPolicy
+  // Pasang YouTube iframe secara terprogram setelah YT.Player API siap
+  // agar bebas race-condition StrictMode maupun mobile slow-network.
   useEffect(() => {
-    const ytId = birthdayConfig.music.youtubeId;
-    if (!birthdayConfig.music.enabled || !ytId) return undefined;
+    if (!birthdayConfig.music.enabled || !hasYouTubeSource || !activeYtId || useFallback) {
+      return undefined;
+    }
 
     let cancelled = false;
+    const slot = ytSlotRef.current;
+    ytReadyRef.current = false;
 
     const attachYouTubeController = () => {
-      if (cancelled || !ytIframeRef.current || !window.YT?.Player || ytPlayerRef.current) {
+      if (cancelled || !slot || !window.YT?.Player) {
         return;
       }
 
-      ytPlayerRef.current = new window.YT.Player(ytIframeRef.current, {
+      try {
+        ytPlayerRef.current?.destroy?.();
+      } catch {
+        // Abaikan jika player lama sudah dibersihkan
+      }
+      ytPlayerRef.current = null;
+      slot.innerHTML = '';
+
+      const iframe = document.createElement('iframe');
+      iframe.id = 'yt-birthday-player';
+      iframe.title = `${birthdayConfig.music.title} - ${birthdayConfig.music.subtitle}`;
+      iframe.width = '224';
+      iframe.height = '126';
+      iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+      iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+      iframe.setAttribute('playsinline', '');
+      iframe.className = 'h-full w-full border-0';
+      iframe.src = buildYtEmbedUrl(activeYtId);
+      slot.appendChild(iframe);
+
+      ytPlayerRef.current = new window.YT.Player(iframe, {
         events: {
           onReady: (event) => {
             if (cancelled) return;
             ytReadyRef.current = true;
-            event.target.setVolume(birthdayConfig.music.defaultVolume ?? 55);
+            const vol = birthdayConfig.music.defaultVolume ?? 55;
+            event.target.setVolume(vol);
+            if (isMutedRef.current) {
+              event.target.mute();
+            } else {
+              event.target.unMute();
+            }
             if (pendingPlayRef.current) {
               pendingPlayRef.current = false;
-              event.target.unMute();
               event.target.playVideo();
+              scheduleMobilePlaybackCheck(1800);
             }
           },
           onStateChange: (event) => {
             if (cancelled || !window.YT?.PlayerState) return;
             if (event.data === window.YT.PlayerState.PLAYING) {
+              clearPlayCheckTimer();
               setIsPlaying(true);
+              setNeedsDirectTap(false);
+            } else if (event.data === window.YT.PlayerState.BUFFERING) {
+              clearPlayCheckTimer();
+              scheduleMobilePlaybackCheck(5000);
             } else if (
               event.data === window.YT.PlayerState.PAUSED ||
               event.data === window.YT.PlayerState.ENDED
             ) {
+              clearPlayCheckTimer();
               setIsPlaying(false);
             }
           },
-          onError: () => {
+          onError: (event) => {
             if (cancelled) return;
+            clearPlayCheckTimer();
+            const code = event?.data ?? 'ERR';
+            // Coba video Rizky Febian cadangan dulu sebelum turun ke audio piano
+            if (ytCandidateIdx + 1 < ytCandidates.length) {
+              pendingPlayRef.current = pendingPlayRef.current || hasEnteredRef.current;
+              setYtCandidateIdx((prev) => prev + 1);
+              return;
+            }
+            setYtErrorCode(code);
             switchToFallback(pendingPlayRef.current || hasEnteredRef.current);
             pendingPlayRef.current = false;
           },
@@ -154,6 +258,7 @@ export default function App() {
         script.async = true;
         script.onerror = () => {
           if (!cancelled) {
+            setYtErrorCode('API');
             switchToFallback(pendingPlayRef.current || hasEnteredRef.current);
           }
         };
@@ -163,10 +268,31 @@ export default function App() {
 
     return () => {
       cancelled = true;
+      clearPlayCheckTimer();
+      ytReadyRef.current = false;
+      try {
+        ytPlayerRef.current?.destroy?.();
+      } catch {
+        // Abaikan error saat unmount
+      }
+      ytPlayerRef.current = null;
+      if (slot) {
+        slot.innerHTML = '';
+      }
     };
-  }, [switchToFallback]);
+  }, [
+    activeYtId,
+    clearPlayCheckTimer,
+    hasYouTubeSource,
+    retryNonce,
+    scheduleMobilePlaybackCheck,
+    switchToFallback,
+    useFallback,
+    ytCandidateIdx,
+    ytCandidates.length,
+  ]);
 
-  // Sinkronkan mute ke audio fallback dan YouTube player
+  // Sinkronkan mute ke audio lokal maupun YouTube player
   useEffect(() => {
     const audio = fallbackAudioRef.current;
     if (audio) {
@@ -175,7 +301,7 @@ export default function App() {
     }
 
     const player = ytPlayerRef.current;
-    if (player && ytReadyRef.current && !useFallback) {
+    if (player && ytReadyRef.current && !useFallback && !hasPrimaryLocalAudio) {
       try {
         if (isMuted) {
           player.mute();
@@ -187,68 +313,84 @@ export default function App() {
         // Abaikan bila player belum siap
       }
     }
-  }, [isMuted, useFallback]);
+  }, [hasPrimaryLocalAudio, isMuted, useFallback]);
 
   const startMusicFromGesture = () => {
     if (!birthdayConfig.music.enabled) return;
 
-    if (!useFallback && birthdayConfig.music.youtubeId) {
-      const player = ytPlayerRef.current;
-      if (player && ytReadyRef.current) {
-        try {
-          player.unMute();
-          player.setVolume(birthdayConfig.music.defaultVolume ?? 55);
-          player.playVideo();
-          setIsPlaying(true);
-          return;
-        } catch {
-          switchToFallback(true);
-          return;
-        }
-      }
-
-      // Bila iframe API masih loading saat tombol diklik, kirim postMessage langsung + antrekan play
-      try {
-        ytIframeRef.current?.contentWindow?.postMessage(
-          JSON.stringify({ event: 'command', func: 'unMute', args: [] }),
-          '*',
-        );
-        ytIframeRef.current?.contentWindow?.postMessage(
-          JSON.stringify({ event: 'command', func: 'playVideo', args: [] }),
-          '*',
-        );
-      } catch {
-        // Abaikan jika postMessage gagal
-      }
-      pendingPlayRef.current = true;
+    if (hasPrimaryLocalAudio || useFallback) {
+      playLocalAudio();
       return;
     }
 
-    playFallbackAudio();
+    if (hasYouTubeSource) {
+      const player = ytPlayerRef.current;
+      if (player && ytReadyRef.current) {
+        try {
+          if (isMutedRef.current) {
+            player.mute();
+          } else {
+            player.unMute();
+            player.setVolume(birthdayConfig.music.defaultVolume ?? 55);
+          }
+          player.playVideo();
+          scheduleMobilePlaybackCheck(2000);
+          return;
+        } catch {
+          pendingPlayRef.current = true;
+          scheduleMobilePlaybackCheck(2000);
+          return;
+        }
+      }
+
+      // YouTube masih memuat saat tombol diklik: antrekan & pantau status autoplay HP
+      pendingPlayRef.current = true;
+      scheduleMobilePlaybackCheck(2600);
+    }
   };
 
   const togglePlay = () => {
-    if (!useFallback && ytPlayerRef.current && ytReadyRef.current) {
-      try {
-        if (isPlaying) {
-          ytPlayerRef.current.pauseVideo();
-          setIsPlaying(false);
-        } else {
-          ytPlayerRef.current.unMute();
-          ytPlayerRef.current.playVideo();
-          setIsPlaying(true);
+    if (!birthdayConfig.music.enabled) return;
+
+    // Jika YouTube masih aktif sebagai sumber utama, JANGAN pernah fallback ke piano dari sini
+    if (hasYouTubeSource && !useFallback) {
+      const player = ytPlayerRef.current;
+      if (player && ytReadyRef.current) {
+        try {
+          if (isPlaying) {
+            clearPlayCheckTimer();
+            player.pauseVideo();
+            setIsPlaying(false);
+          } else {
+            setNeedsDirectTap(false);
+            if (isMutedRef.current) {
+              player.mute();
+            } else {
+              player.unMute();
+              player.setVolume(birthdayConfig.music.defaultVolume ?? 55);
+            }
+            player.playVideo();
+            scheduleMobilePlaybackCheck(1500);
+          }
+          return;
+        } catch {
+          setShowVideo(true);
+          setNeedsDirectTap(true);
+          return;
         }
-        return;
-      } catch {
-        switchToFallback(true);
-        return;
       }
+
+      // Bila player YouTube masih loading di HP, buka mini-player dan minta ketuk video
+      pendingPlayRef.current = true;
+      setShowVideo(true);
+      setNeedsDirectTap(true);
+      return;
     }
 
     const audio = fallbackAudioRef.current;
     if (!audio || fallbackError) return;
     if (audio.paused) {
-      playFallbackAudio();
+      playLocalAudio();
     } else {
       audio.pause();
       setIsPlaying(false);
@@ -259,9 +401,32 @@ export default function App() {
     setIsMuted((prev) => !prev);
   };
 
+  const handleRetryYouTube = () => {
+    if (!hasYouTubeSource) return;
+    const audio = fallbackAudioRef.current;
+    if (audio && !audio.paused) {
+      audio.pause();
+    }
+    setIsPlaying(false);
+    setYtErrorCode(null);
+    setYtCandidateIdx(0);
+    setUseFallback(false);
+    setShowVideo(true);
+    setNeedsDirectTap(true);
+    pendingPlayRef.current = true;
+    setRetryNonce((prev) => prev + 1);
+  };
+
   const handleOpenComplete = () => {
     setHasEntered(true);
     window.scrollTo({ top: 0, behavior: 'instant' });
+    // Jika YouTube tertahan kebijakan autoplay saat transisi opening, buka mini player supaya terlihat
+    if (hasYouTubeSource && !useFallback) {
+      const state = ytPlayerRef.current?.getPlayerState?.();
+      if (ytReadyRef.current && state !== 1 && state !== 3 && !pendingPlayRef.current) {
+        scheduleMobilePlaybackCheck(800);
+      }
+    }
   };
 
   const displayTitle = useFallback
@@ -271,39 +436,61 @@ export default function App() {
     ? birthdayConfig.music.fallbackSubtitle
     : birthdayConfig.music.subtitle;
 
+  const isVideoOverlayVisible =
+    birthdayConfig.music.enabled && hasYouTubeSource && !useFallback && hasEntered && showVideo;
+
+  useEffect(() => {
+    const iframe = ytSlotRef.current?.querySelector('iframe');
+    if (iframe) {
+      iframe.tabIndex = isVideoOverlayVisible ? 0 : -1;
+    }
+  }, [isVideoOverlayVisible, ytCandidateIdx, retryNonce]);
+
   return (
     <div className="min-h-dvh bg-[#FFF0F5] text-[#75465A] selection:bg-[#F8BBD0] selection:text-[#75465A]">
-      {/* IFrame YouTube dengan referrerPolicy & origin eksplisit (tidak autoplay sebelum interaksi) */}
-      {birthdayConfig.music.enabled && birthdayConfig.music.youtubeId && !useFallback && (
+      {/* IFrame YouTube disembunyikan rapi di luar viewport atas saat video tidak ditampilkan
+          (hindari display:none/visibility:hidden agar YT.Player tetap aktif) */}
+      {birthdayConfig.music.enabled && hasYouTubeSource && !useFallback && (
         <div
-          className={`fixed overflow-hidden rounded-2xl border-2 border-white bg-white shadow-xl transition-all duration-300 ${
-            hasEntered && showVideo
-              ? 'bottom-20 right-4 sm:bottom-24 sm:right-6 z-40 h-[126px] w-[224px] pointer-events-auto'
-              : '-top-[320px] left-0 z-0 h-[118px] w-[210px] pointer-events-none'
+          className={`fixed transition-all duration-300 ${
+            isVideoOverlayVisible
+              ? 'bottom-20 right-4 sm:bottom-24 sm:right-6 z-40 w-[232px] pointer-events-auto'
+              : '-top-[320px] left-0 z-0 w-[210px] pointer-events-none'
           }`}
-          aria-hidden={!showVideo}
+          aria-hidden={!isVideoOverlayVisible}
         >
-          <iframe
-            ref={ytIframeRef}
-            id="yt-birthday-player"
-            src={ytEmbedUrl}
-            title="Selamat Ulang Tahun - Rizky Febian"
-            width="224"
-            height="126"
-            allow="autoplay; encrypted-media; picture-in-picture"
-            referrerPolicy="strict-origin-when-cross-origin"
-            className="h-full w-full border-0"
+          {isVideoOverlayVisible && needsDirectTap && !isPlaying && (
+            <div className="mb-1.5 flex items-center justify-between gap-2 rounded-full border border-white bg-[#FFF0F5]/95 px-3 py-1 text-[11px] font-bold text-[#B94F7C] shadow-md backdrop-blur-sm font-heading">
+              <span className="truncate">Ketuk ▶ di video buat putar lagu</span>
+              <button
+                type="button"
+                onClick={() => setShowVideo(false)}
+                aria-label="Tutup jendela video"
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#FFE4EC] text-[#B94F7C] hover:bg-[#F8BBD0]"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+
+          <div
+            ref={ytSlotRef}
+            className={`overflow-hidden rounded-2xl ${
+              isVideoOverlayVisible
+                ? 'h-[130px] w-[232px] border-2 border-white bg-white shadow-xl'
+                : 'h-[118px] w-[210px] border-0 bg-transparent shadow-none'
+            }`}
           />
         </div>
       )}
 
-      {/* Audio cadangan lokal bila YouTube gagal dimuat */}
+      {/* Audio lokal: lagu utama (jika primaryAudioSrc diisi) atau cadangan piano */}
       {birthdayConfig.music.enabled && (
         <audio
           ref={fallbackAudioRef}
-          src={birthdayConfig.music.fallbackSrc}
+          src={birthdayConfig.music.primaryAudioSrc || birthdayConfig.music.fallbackSrc}
           loop
-          preload="auto"
+          preload={useFallback || hasPrimaryLocalAudio ? 'auto' : 'none'}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           onError={() => {
@@ -327,7 +514,7 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.75, ease: 'easeOut' }}
-            className="relative"
+            className="relative z-10 bg-[#FFF0F5]"
           >
             <div id="scroll-progress" ref={progressRef} aria-hidden="true" />
             <HeroSection config={birthdayConfig} />
@@ -344,16 +531,20 @@ export default function App() {
             {birthdayConfig.music.enabled && (
               <MusicPlayer
                 isPlaying={isPlaying}
-                hasError={useFallback && fallbackError}
+                hasError={(useFallback || hasPrimaryLocalAudio) && fallbackError}
                 isMuted={isMuted}
                 isUsingFallback={useFallback}
                 showVideo={showVideo}
+                needsDirectTap={needsDirectTap}
+                ytErrorCode={ytErrorCode}
+                hasYouTubeSource={hasYouTubeSource}
                 title={displayTitle}
                 subtitle={displaySubtitle}
                 youtubeUrl={birthdayConfig.music.youtubeUrl}
                 onTogglePlay={togglePlay}
                 onToggleMute={toggleMute}
                 onToggleVideo={() => setShowVideo((prev) => !prev)}
+                onRetryYouTube={handleRetryYouTube}
               />
             )}
           </motion.main>

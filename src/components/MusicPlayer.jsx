@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ExternalLink, Music, Pause, Play, Video, Volume2, VolumeX } from 'lucide-react';
+import { ExternalLink, Music, Pause, Play, RotateCcw, Video, Volume2, VolumeX } from 'lucide-react';
 
 /**
  * Pemutar musik melayang berwarna pink pastel dengan kontrol Play/Pause, Mute,
- * toggle mini-video YouTube, safe-area padding, serta tautan ke video YouTube asli.
+ * toggle mini-video YouTube, tombol coba ulang YouTube bila fallback aktif,
+ * serta tautan ke video YouTube asli.
  */
 export default function MusicPlayer({
   isPlaying,
@@ -12,14 +13,36 @@ export default function MusicPlayer({
   isMuted,
   isUsingFallback,
   showVideo = false,
+  needsDirectTap = false,
+  ytErrorCode = null,
+  hasYouTubeSource = false,
   title,
   subtitle,
   youtubeUrl,
   onTogglePlay,
   onToggleMute,
   onToggleVideo,
+  onRetryYouTube,
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  const renderStatusText = () => {
+    if (hasError) return 'Cek koneksi / YouTube';
+    if (isUsingFallback) {
+      if (!isPlaying) return 'Cadangan dijeda • Klik putar';
+      if (isMuted) return 'Lagi di-mute';
+      return ytErrorCode
+        ? `${subtitle} (Cadangan • YT ${ytErrorCode})`
+        : `${subtitle} (Cadangan)`;
+    }
+    if (needsDirectTap && !isPlaying) {
+      return 'Ketuk ▶ di video atas ya';
+    }
+    if (isPlaying) {
+      return isMuted ? 'Lagi di-mute' : subtitle;
+    }
+    return 'Lagi dijeda • Klik putar';
+  };
 
   return (
     <motion.div
@@ -78,20 +101,12 @@ export default function MusicPlayer({
             ))}
           </div>
 
-          <div className="max-w-[148px] sm:max-w-[175px]">
+          <div className="max-w-[152px] sm:max-w-[180px]">
             <p className="truncate text-xs font-bold text-[#B94F7C] font-heading leading-tight">
               {hasError ? 'Lagu Belum Siap' : title}
             </p>
             <p className="truncate text-[10px] text-[#966379] leading-tight">
-              {hasError
-                ? 'Cek koneksi / YouTube'
-                : isPlaying
-                  ? isMuted
-                    ? 'Lagi di-mute'
-                    : isUsingFallback
-                      ? `${subtitle} (Cadangan)`
-                      : subtitle
-                  : 'Lagi dijeda • Klik putar'}
+              {renderStatusText()}
             </p>
           </div>
         </button>
@@ -134,6 +149,18 @@ export default function MusicPlayer({
                 </button>
               )}
 
+              {isUsingFallback && hasYouTubeSource && onRetryYouTube && (
+                <button
+                  type="button"
+                  onClick={onRetryYouTube}
+                  aria-label="Coba putar lagu Rizky Febian lagi"
+                  title="Coba putar Rizky Febian lagi"
+                  className="touch-control flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FFF0F5] text-[#B94F7C] hover:bg-[#FFE4EC] transition-colors"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+              )}
+
               {youtubeUrl && (
                 <a
                   href={youtubeUrl}
@@ -150,7 +177,10 @@ export default function MusicPlayer({
         </AnimatePresence>
 
         {!expanded && (
-          <span className="hidden sm:flex h-7 w-7 items-center justify-center rounded-full bg-[#FFF0F5] text-[#E875A5]" aria-hidden="true">
+          <span
+            className="hidden sm:flex h-7 w-7 items-center justify-center rounded-full bg-[#FFF0F5] text-[#E875A5]"
+            aria-hidden="true"
+          >
             <Music className="h-3.5 w-3.5" />
           </span>
         )}
